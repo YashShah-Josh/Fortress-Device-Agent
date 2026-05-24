@@ -1,0 +1,8 @@
+com/fortress/deviceagent/DeviceHttpServer.class
+com/fortress/deviceagent/DeviceSigner.class
+com/fortress/deviceagent/KeyStoreManager.class
+com/fortress/deviceagent/DeviceHttpServer$DeviceIdHandler.class
+com/fortress/deviceagent/DeviceSerialCache.class
+com/fortress/deviceagent/DeviceSerialProvider.class
+com/fortress/deviceagent/Main.class
+com/fortress/deviceagent/AgentConfig.class

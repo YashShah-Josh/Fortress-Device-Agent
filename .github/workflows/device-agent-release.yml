@@ -1,0 +1,43 @@
+name: Device Agent Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'device-agent-v*'
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: linux-amd64.deb
+          - os: macos-latest
+            artifact: macos-aarch64.dmg
+          - os: windows-latest
+            artifact: windows-x64.msi
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Build JAR
+        working-directory: Fortress-Device-Agent
+        run: mvn -B package -DskipTests
+      - name: Build installer (Unix)
+        if: runner.os != 'Windows'
+        working-directory: Fortress-Device-Agent
+        run: chmod +x scripts/build-installer.sh && ./scripts/build-installer.sh 1.0.0
+      - name: Build installer (Windows)
+        if: runner.os == 'Windows'
+        working-directory: Fortress-Device-Agent
+        run: scripts\build-installer.bat 1.0.0
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FortressDeviceAgent-${{ matrix.artifact }}
+          path: Fortress-Device-Agent/target/dist/**

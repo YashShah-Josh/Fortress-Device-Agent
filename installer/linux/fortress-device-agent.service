@@ -1,0 +1,12 @@
+[Unit]
+Description=Fortress Device Agent
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/opt/fortress-device-agent/bin/fortress-device-agent
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
