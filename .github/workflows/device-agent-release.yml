@@ -26,18 +26,15 @@ jobs:
           distribution: temurin
           java-version: '17'
       - name: Build JAR
-        working-directory: Fortress-Device-Agent
         run: mvn -B package -DskipTests
       - name: Build installer (Unix)
         if: runner.os != 'Windows'
-        working-directory: Fortress-Device-Agent
         run: chmod +x scripts/build-installer.sh && ./scripts/build-installer.sh 1.0.0
       - name: Build installer (Windows)
         if: runner.os == 'Windows'
-        working-directory: Fortress-Device-Agent
         run: scripts\build-installer.bat 1.0.0
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: FortressDeviceAgent-${{ matrix.artifact }}
-          path: Fortress-Device-Agent/target/dist/**
+          path: target/dist/**
