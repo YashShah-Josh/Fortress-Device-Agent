@@ -78,6 +78,7 @@ public class DeviceHttpServer {
         headers.set("Access-Control-Allow-Origin", "*");
         headers.set("Access-Control-Allow-Methods", "GET, OPTIONS");
         headers.set("Access-Control-Allow-Headers", "Content-Type");
+        headers.set("Cache-Control", "no-store");
     }
 
     private static void writeJson(HttpExchange exchange, int status, String body) throws IOException {
