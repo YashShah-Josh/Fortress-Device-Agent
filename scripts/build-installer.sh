@@ -25,6 +25,7 @@ case "$OS" in
       --dest "$DIR/target/dist"
     ;;
   Linux)
+    chmod +x "$DIR/installer/jpackage/linux/postinst" "$DIR/installer/jpackage/linux/prerm"
     jpackage \
       --name fortress-device-agent \
       --input "$INPUT" \
@@ -34,7 +35,8 @@ case "$OS" in
       --app-version "$VERSION" \
       --vendor Fortress \
       --dest "$DIR/target/dist" \
-      --linux-shortcut
+      --linux-shortcut \
+      --resource-dir "$DIR/installer/jpackage/linux"
     ;;
   *)
     echo "On Windows run scripts/build-installer.bat"

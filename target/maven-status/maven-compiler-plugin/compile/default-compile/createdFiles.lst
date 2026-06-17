@@ -1,3 +1,4 @@
+com/fortress/deviceagent/AutoStartRegistrar.class
 com/fortress/deviceagent/DeviceHttpServer.class
 com/fortress/deviceagent/DeviceSigner.class
 com/fortress/deviceagent/KeyStoreManager.class

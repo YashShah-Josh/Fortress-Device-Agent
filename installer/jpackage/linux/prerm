@@ -1,0 +1,7 @@
+#!/bin/sh
+set -e
+
+systemctl stop fortress-device-agent.service 2>/dev/null || true
+systemctl disable fortress-device-agent.service 2>/dev/null || true
+rm -f /etc/systemd/system/fortress-device-agent.service
+systemctl daemon-reload

@@ -13,6 +13,8 @@ public final class Main {
             }
         }
 
+        AutoStartRegistrar.ensureRegistered();
+
         DeviceHttpServer httpServer = new DeviceHttpServer(port);
         httpServer.start();
         Runtime.getRuntime().addShutdownHook(new Thread(httpServer::stop));

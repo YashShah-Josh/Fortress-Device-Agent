@@ -16,10 +16,21 @@ Download the installer for your OS from the release artifacts:
 2. The agent starts automatically and listens on `http://127.0.0.1:4567/device-id`.
 3. Log in to Fortress in the browser on the same machine.
 
+Auto-start after reboot/login:
+
+| OS | Mechanism |
+|----|-----------|
+| Windows | Registry `Run` key (set by MSI installer) |
+| macOS | LaunchAgent (registered on first agent launch, or via script below) |
+| Linux | systemd service (enabled by `.deb` post-install) |
+
 **macOS post-install (if auto-start did not register):**
 ```bash
+chmod +x installer/post-install-macos.sh
 ./installer/post-install-macos.sh
 ```
+
+Or launch the app once from `/Applications` — the agent registers itself for future logins.
 
 ## Developers
 

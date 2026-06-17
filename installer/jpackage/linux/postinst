@@ -1,0 +1,26 @@
+#!/bin/sh
+set -e
+
+INSTALL_ROOT="/opt/fortress-device-agent"
+BIN="$INSTALL_ROOT/bin/fortress-device-agent"
+SERVICE="/etc/systemd/system/fortress-device-agent.service"
+
+cat > "$SERVICE" << EOF
+[Unit]
+Description=Fortress Device Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=$BIN
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable fortress-device-agent.service
+systemctl start fortress-device-agent.service
