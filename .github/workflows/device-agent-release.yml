@@ -29,26 +29,23 @@ jobs:
         shell: pwsh
         run: |
           choco install wixtoolset --allow-downgrade --version=3.11.2 -y
-          # Reload PATH from registry so subsequent pwsh commands in this step can see WiX
-          $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
-          # Persist the updated PATH to GITHUB_PATH so all later steps inherit it
-          $wixDir = Get-ChildItem "C:\Program Files (x86)\WiX Toolset v3*" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
-          if (-not $wixDir) {
-            $wixDir = Get-ChildItem "C:\Program Files\WiX Toolset v3*" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
-          }
-          if (-not $wixDir) { Write-Error "WiX Toolset directory not found after install"; exit 1 }
-          $wixBin = Join-Path $wixDir "bin"
-          Write-Host "WiX bin dir: $wixBin"
-          Add-Content $env:GITHUB_PATH $wixBin
-          # Verify key binaries and extensions exist
-          $light = Join-Path $wixBin "light.exe"
-          $ext   = Join-Path $wixBin "WixUtilExtension.dll"
-          if (-not (Test-Path $light)) { Write-Error "light.exe not found at $light"; exit 1 }
-          if (-not (Test-Path $ext))   { Write-Error "WixUtilExtension.dll not found at $ext"; exit 1 }
-          Write-Host "WiX install verified. light.exe and WixUtilExtension.dll found."
-
-      - name: Build JAR
-        run: mvn -B package -DskipTests
+      
+          # Discover where light.exe actually ended up
+          Write-Host "=== Searching for light.exe ==="
+          Get-ChildItem -Path "C:\Program Files (x86)", "C:\Program Files", "C:\ProgramData\chocolatey" `
+            -Filter "light.exe" -Recurse -ErrorAction SilentlyContinue |
+            Select-Object FullName
+      
+          Write-Host "=== WiX Toolset folder structure ==="
+          Get-ChildItem -Path "C:\Program Files (x86)\WiX Toolset v3.11" -Recurse -ErrorAction SilentlyContinue |
+            Select-Object FullName
+      
+          Write-Host "=== Chocolatey shims ==="
+          Get-ChildItem "C:\ProgramData\chocolatey\bin" -Filter "*.exe" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match "light|candle|wix" } |
+            Select-Object FullName
+            - name: Build JAR
+              run: mvn -B package -DskipTests
 
       - name: Build installer (Unix)
         if: runner.os != 'Windows'
