@@ -24,26 +24,6 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Install WiX 3.11.2 and diagnose install path (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          choco install wixtoolset --allow-downgrade --version=3.11.2 -y
-
-          Write-Host "=== All WiX folders under Program Files ==="
-          Get-ChildItem "C:\Program Files (x86)", "C:\Program Files" -Directory -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -match "[Ww]i[Xx]" } |
-            Select-Object FullName
-
-          Write-Host "=== All light.exe on disk ==="
-          Get-ChildItem "C:\Program Files (x86)", "C:\Program Files", "C:\ProgramData\chocolatey" `
-            -Filter "light.exe" -Recurse -ErrorAction SilentlyContinue |
-            Select-Object FullName
-
-          Write-Host "=== Chocolatey lib folder for wixtoolset ==="
-          Get-ChildItem "C:\ProgramData\chocolatey\lib\wixtoolset" -Recurse -ErrorAction SilentlyContinue |
-            Select-Object FullName
-
       - name: Build JAR
         run: mvn -B package -DskipTests
 
@@ -53,11 +33,50 @@ jobs:
 
       - name: Build installer (Windows)
         if: runner.os == 'Windows'
-        shell: pwsh
+        shell: cmd
         run: |
-          Write-Host "Active light.exe: $((Get-Command light.exe).Source)"
-          & scripts\build-installer.bat 1.0.0
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          REM Find WiX bin dir and prepend to PATH so jpackage subprocess inherits it
+          for /f "delims=" %%i in ('powershell -NoProfile -Command ^
+            "(Get-ChildItem \"C:\Program Files (x86)\" -Directory ^| Where-Object { $_.Name -match \"WiX Toolset\" } ^| Sort-Object Name -Descending ^| Select-Object -First 1 -ExpandProperty FullName)"') do set WIX_BIN=%%i\bin
+
+          echo WiX bin: %WIX_BIN%
+          set PATH=%WIX_BIN%;%PATH%
+          where light.exe
+
+          REM Run jpackage twice (template extract + final build) with WiX on PATH
+          set DIR=%CD%
+          set VERSION=1.0.0
+          set JAR=%DIR%\target\fortress-device-agent.jar
+          set INPUT=%DIR%\target\jpackage-input
+          set WIX_TEMP=%DIR%\target\jpackage-wix-temp
+          set WIX_OVERRIDE=%DIR%\target\wix-override
+
+          if exist "%INPUT%" rmdir /s /q "%INPUT%"
+          mkdir "%INPUT%"
+          copy /y "%JAR%" "%INPUT%\"
+
+          if exist "%WIX_TEMP%" rmdir /s /q "%WIX_TEMP%"
+          mkdir "%WIX_TEMP%"
+
+          if exist "%WIX_OVERRIDE%" rmdir /s /q "%WIX_OVERRIDE%"
+          mkdir "%WIX_OVERRIDE%"
+
+          set JPARGS=--name FortressDeviceAgent --input "%INPUT%" --main-jar fortress-device-agent.jar --main-class com.fortress.deviceagent.Main --app-version %VERSION% --vendor Fortress --win-shortcut
+
+          echo Extracting WiX template...
+          jpackage %JPARGS% --temp "%WIX_TEMP%" --type msi --dest "%DIR%\target\dist"
+          if errorlevel 1 exit /b 1
+
+          copy /y "%WIX_TEMP%\config\main.wxs" "%WIX_OVERRIDE%\main.wxs"
+
+          powershell -ExecutionPolicy Bypass -File "%DIR%\scripts\patch-main-wxs.ps1" -MainWxsPath "%WIX_OVERRIDE%\main.wxs"
+          if errorlevel 1 exit /b 1
+
+          echo Building MSI with login auto-start...
+          jpackage %JPARGS% --resource-dir "%WIX_OVERRIDE%" --type msi --dest "%DIR%\target\dist"
+          if errorlevel 1 exit /b 1
+
+          echo Installer written to %DIR%\target\dist
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
