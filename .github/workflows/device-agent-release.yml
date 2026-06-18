@@ -28,11 +28,16 @@ jobs:
       - name: Install WiX Toolset (Windows)
         if: runner.os == 'Windows'
         run: |
-          choco install wixtoolset -y
+          choco install wixtoolset --version=3.11.2 -y
           refreshenv
           echo "WiX installation completed"
           where light.exe || (echo "light.exe not found on PATH" && exit 1)
-          light.exe -v || light.exe -version || echo "light.exe version check failed"
+          REM Try multiple flags to show version/help output so logs are informative
+          light.exe -version || light.exe -v || light.exe -help || echo "light.exe version check failed"
+          echo "WiX installation folder(s):"
+          dir "C:\Program Files (x86)\WiX Toolset" /b /s || dir "C:\Program Files\WiX Toolset" /b /s || true
+          echo "Checking for WixUtilExtension.dll"
+          powershell -Command "Get-ChildItem -Path 'C:\Program Files*' -Filter 'WixUtilExtension.dll' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 10"
       - name: Build JAR
         run: mvn -B package -DskipTests
       - name: Build installer (Unix)
@@ -40,7 +45,11 @@ jobs:
         run: chmod +x scripts/build-installer.sh && ./scripts/build-installer.sh 1.0.0
       - name: Build installer (Windows)
         if: runner.os == 'Windows'
-        run: scripts\build-installer.bat 1.0.0
+        run: |
+          REM Pre-check for WiX before running installer build
+          where light.exe >nul 2>&1 || (echo "ERROR: light.exe not found on PATH. Ensure WiX Toolset is installed." & exit 1)
+          powershell -Command "if (-not (Get-ChildItem 'C:\Program Files*' -Filter 'WixUtilExtension.dll' -Recurse -ErrorAction SilentlyContinue)) { Write-Host 'ERROR: WixUtilExtension.dll not found' ; exit 1 }"
+          scripts\build-installer.bat 1.0.0
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
