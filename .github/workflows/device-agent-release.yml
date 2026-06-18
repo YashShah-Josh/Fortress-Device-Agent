@@ -28,9 +28,11 @@ jobs:
       - name: Install WiX Toolset (Windows)
         if: runner.os == 'Windows'
         run: |
-          dotnet tool install --global WiX
+          choco install wixtoolset -y
+          refreshenv
           echo "WiX installation completed"
-          wix --version
+          where light.exe || (echo "light.exe not found on PATH" && exit 1)
+          light.exe -v || light.exe -version || echo "light.exe version check failed"
       - name: Build JAR
         run: mvn -B package -DskipTests
       - name: Build installer (Unix)
