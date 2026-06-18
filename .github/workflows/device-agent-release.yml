@@ -27,7 +27,10 @@ jobs:
           java-version: '17'
       - name: Install WiX Toolset (Windows)
         if: runner.os == 'Windows'
-        run: dotnet tool install --global WiX
+        run: |
+          dotnet tool install --global WiX
+          echo "WiX installation completed"
+          wix --version
       - name: Build JAR
         run: mvn -B package -DskipTests
       - name: Build installer (Unix)
