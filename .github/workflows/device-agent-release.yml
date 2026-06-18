@@ -25,6 +25,9 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Install WiX Toolset (Windows)
+        if: runner.os == 'Windows'
+        run: dotnet tool install --global WiX
       - name: Build JAR
         run: mvn -B package -DskipTests
       - name: Build installer (Unix)
