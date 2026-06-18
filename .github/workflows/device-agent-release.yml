@@ -33,50 +33,58 @@ jobs:
 
       - name: Build installer (Windows)
         if: runner.os == 'Windows'
-        shell: cmd
+        shell: pwsh
         run: |
-          REM Find WiX bin dir and prepend to PATH so jpackage subprocess inherits it
-          for /f "delims=" %%i in ('powershell -NoProfile -Command ^
-            "(Get-ChildItem \"C:\Program Files (x86)\" -Directory ^| Where-Object { $_.Name -match \"WiX Toolset\" } ^| Sort-Object Name -Descending ^| Select-Object -First 1 -ExpandProperty FullName)"') do set WIX_BIN=%%i\bin
+          # Find WiX bin and prepend to PATH for this process and all children
+          $wixBin = Get-ChildItem "C:\Program Files (x86)" -Directory |
+            Where-Object { $_.Name -match "WiX Toolset" } |
+            Sort-Object Name -Descending |
+            Select-Object -First 1 -ExpandProperty FullName
+          $wixBin = Join-Path $wixBin "bin"
+          Write-Host "WiX bin: $wixBin"
+          $env:PATH = "$wixBin;$env:PATH"
+          Write-Host "light.exe: $((Get-Command light.exe).Source)"
 
-          echo WiX bin: %WIX_BIN%
-          set PATH=%WIX_BIN%;%PATH%
-          where light.exe
+          $DIR = (Get-Location).Path
+          $VERSION = "1.0.0"
+          $JAR = "$DIR\target\fortress-device-agent.jar"
+          $INPUT = "$DIR\target\jpackage-input"
+          $WIX_TEMP = "$DIR\target\jpackage-wix-temp"
+          $WIX_OVERRIDE = "$DIR\target\wix-override"
 
-          REM Run jpackage twice (template extract + final build) with WiX on PATH
-          set DIR=%CD%
-          set VERSION=1.0.0
-          set JAR=%DIR%\target\fortress-device-agent.jar
-          set INPUT=%DIR%\target\jpackage-input
-          set WIX_TEMP=%DIR%\target\jpackage-wix-temp
-          set WIX_OVERRIDE=%DIR%\target\wix-override
+          if (Test-Path $INPUT)       { Remove-Item $INPUT -Recurse -Force }
+          if (Test-Path $WIX_TEMP)    { Remove-Item $WIX_TEMP -Recurse -Force }
+          if (Test-Path $WIX_OVERRIDE){ Remove-Item $WIX_OVERRIDE -Recurse -Force }
+          New-Item $INPUT -ItemType Directory | Out-Null
+          New-Item $WIX_TEMP -ItemType Directory | Out-Null
+          New-Item $WIX_OVERRIDE -ItemType Directory | Out-Null
 
-          if exist "%INPUT%" rmdir /s /q "%INPUT%"
-          mkdir "%INPUT%"
-          copy /y "%JAR%" "%INPUT%\"
+          Copy-Item $JAR $INPUT\
 
-          if exist "%WIX_TEMP%" rmdir /s /q "%WIX_TEMP%"
-          mkdir "%WIX_TEMP%"
+          $JPARGS = @(
+            "--name", "FortressDeviceAgent",
+            "--input", $INPUT,
+            "--main-jar", "fortress-device-agent.jar",
+            "--main-class", "com.fortress.deviceagent.Main",
+            "--app-version", $VERSION,
+            "--vendor", "Fortress",
+            "--win-shortcut"
+          )
 
-          if exist "%WIX_OVERRIDE%" rmdir /s /q "%WIX_OVERRIDE%"
-          mkdir "%WIX_OVERRIDE%"
+          Write-Host "Extracting WiX template..."
+          & jpackage @JPARGS --temp $WIX_TEMP --type msi --dest "$DIR\target\dist" --verbose
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-          set JPARGS=--name FortressDeviceAgent --input "%INPUT%" --main-jar fortress-device-agent.jar --main-class com.fortress.deviceagent.Main --app-version %VERSION% --vendor Fortress --win-shortcut
+          Copy-Item "$WIX_TEMP\config\main.wxs" "$WIX_OVERRIDE\main.wxs"
 
-          echo Extracting WiX template...
-          jpackage %JPARGS% --temp "%WIX_TEMP%" --type msi --dest "%DIR%\target\dist"
-          if errorlevel 1 exit /b 1
+          & powershell -ExecutionPolicy Bypass -File "$DIR\scripts\patch-main-wxs.ps1" -MainWxsPath "$WIX_OVERRIDE\main.wxs"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-          copy /y "%WIX_TEMP%\config\main.wxs" "%WIX_OVERRIDE%\main.wxs"
+          Write-Host "Building MSI with login auto-start..."
+          & jpackage @JPARGS --resource-dir $WIX_OVERRIDE --type msi --dest "$DIR\target\dist" --verbose
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-          powershell -ExecutionPolicy Bypass -File "%DIR%\scripts\patch-main-wxs.ps1" -MainWxsPath "%WIX_OVERRIDE%\main.wxs"
-          if errorlevel 1 exit /b 1
-
-          echo Building MSI with login auto-start...
-          jpackage %JPARGS% --resource-dir "%WIX_OVERRIDE%" --type msi --dest "%DIR%\target\dist"
-          if errorlevel 1 exit /b 1
-
-          echo Installer written to %DIR%\target\dist
+          Write-Host "Installer written to $DIR\target\dist"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
