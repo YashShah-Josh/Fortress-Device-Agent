@@ -1,11 +1,9 @@
 name: Device Agent Release
-
 on:
   workflow_dispatch:
   push:
     tags:
       - 'device-agent-v*'
-
 jobs:
   build:
     strategy:
@@ -25,33 +23,52 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+
       - name: Install WiX Toolset (Windows)
         if: runner.os == 'Windows'
-        shell: cmd
+        shell: pwsh
         run: |
           choco install wixtoolset --allow-downgrade --version=3.11.2 -y
-          refreshenv
-          echo "WiX installation completed"
-          where light.exe || (echo "light.exe not found on PATH" && exit 1)
-          rem Try multiple flags to show version/help output so logs are informative
-          light.exe -version || light.exe -v || light.exe -help || echo "light.exe version check failed"
-          echo "WiX installation folder(s):"
-          dir "C:\Program Files (x86)\WiX Toolset" /b /s || dir "C:\Program Files\WiX Toolset" /b /s || echo "No WiX folder found"
-          echo "Checking for WixUtilExtension.dll"
-          powershell -Command "Get-ChildItem -Path 'C:\Program Files*' -Filter 'WixUtilExtension.dll' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 10"
+          # Reload PATH from registry so subsequent pwsh commands in this step can see WiX
+          $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+          # Persist the updated PATH to GITHUB_PATH so all later steps inherit it
+          $wixDir = Get-ChildItem "C:\Program Files (x86)\WiX Toolset v3*" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $wixDir) {
+            $wixDir = Get-ChildItem "C:\Program Files\WiX Toolset v3*" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+          }
+          if (-not $wixDir) { Write-Error "WiX Toolset directory not found after install"; exit 1 }
+          $wixBin = Join-Path $wixDir "bin"
+          Write-Host "WiX bin dir: $wixBin"
+          Add-Content $env:GITHUB_PATH $wixBin
+          # Verify key binaries and extensions exist
+          $light = Join-Path $wixBin "light.exe"
+          $ext   = Join-Path $wixBin "WixUtilExtension.dll"
+          if (-not (Test-Path $light)) { Write-Error "light.exe not found at $light"; exit 1 }
+          if (-not (Test-Path $ext))   { Write-Error "WixUtilExtension.dll not found at $ext"; exit 1 }
+          Write-Host "WiX install verified. light.exe and WixUtilExtension.dll found."
+
       - name: Build JAR
         run: mvn -B package -DskipTests
+
       - name: Build installer (Unix)
         if: runner.os != 'Windows'
         run: chmod +x scripts/build-installer.sh && ./scripts/build-installer.sh 1.0.0
+
       - name: Build installer (Windows)
         if: runner.os == 'Windows'
-        shell: cmd
+        shell: pwsh
         run: |
-          REM Pre-check for WiX before running installer build
-          where light.exe >nul 2>&1 || (echo "ERROR: light.exe not found on PATH. Ensure WiX Toolset is installed." & exit 1)
-          powershell -Command "if (-not (Get-ChildItem 'C:\Program Files*' -Filter 'WixUtilExtension.dll' -Recurse -ErrorAction SilentlyContinue)) { Write-Host 'ERROR: WixUtilExtension.dll not found. Ensure WiX Toolset is installed.'; exit 1 }"
-          scripts\build-installer.bat 1.0.0
+          # Sanity check — PATH is now set correctly via GITHUB_PATH from the install step
+          $light = Get-Command light.exe -ErrorAction SilentlyContinue
+          if (-not $light) { Write-Error "light.exe not found on PATH"; exit 1 }
+          Write-Host "Using light.exe: $($light.Source)"
+          $wixBin = Split-Path $light.Source
+          $ext = Join-Path $wixBin "WixUtilExtension.dll"
+          if (-not (Test-Path $ext)) { Write-Error "WixUtilExtension.dll not found at $ext"; exit 1 }
+          Write-Host "WixUtilExtension.dll confirmed at: $ext"
+          & scripts\build-installer.bat 1.0.0
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
