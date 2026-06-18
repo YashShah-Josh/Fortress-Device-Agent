@@ -29,23 +29,27 @@ jobs:
         shell: pwsh
         run: |
           choco install wixtoolset --allow-downgrade --version=3.11.2 -y
-      
-          # Discover where light.exe actually ended up
+
+      - name: Diagnose WiX install paths (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
           Write-Host "=== Searching for light.exe ==="
           Get-ChildItem -Path "C:\Program Files (x86)", "C:\Program Files", "C:\ProgramData\chocolatey" `
             -Filter "light.exe" -Recurse -ErrorAction SilentlyContinue |
             Select-Object FullName
-      
+
           Write-Host "=== WiX Toolset folder structure ==="
           Get-ChildItem -Path "C:\Program Files (x86)\WiX Toolset v3.11" -Recurse -ErrorAction SilentlyContinue |
             Select-Object FullName
-      
+
           Write-Host "=== Chocolatey shims ==="
           Get-ChildItem "C:\ProgramData\chocolatey\bin" -Filter "*.exe" -ErrorAction SilentlyContinue |
             Where-Object { $_.Name -match "light|candle|wix" } |
             Select-Object FullName
-            - name: Build JAR
-              run: mvn -B package -DskipTests
+
+      - name: Build JAR
+        run: mvn -B package -DskipTests
 
       - name: Build installer (Unix)
         if: runner.os != 'Windows'
@@ -55,7 +59,6 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          # Sanity check — PATH is now set correctly via GITHUB_PATH from the install step
           $light = Get-Command light.exe -ErrorAction SilentlyContinue
           if (-not $light) { Write-Error "light.exe not found on PATH"; exit 1 }
           Write-Host "Using light.exe: $($light.Source)"
