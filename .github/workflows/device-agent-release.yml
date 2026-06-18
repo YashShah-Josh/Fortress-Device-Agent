@@ -28,11 +28,11 @@ jobs:
       - name: Install WiX Toolset (Windows)
         if: runner.os == 'Windows'
         run: |
-          choco install wixtoolset --version=3.11.2 -y
+          choco install wixtoolset --allow-downgrade --version=3.11.2 -y
           refreshenv
           echo "WiX installation completed"
           where light.exe || (echo "light.exe not found on PATH" && exit 1)
-          REM Try multiple flags to show version/help output so logs are informative
+          # Try multiple flags to show version/help output so logs are informative
           light.exe -version || light.exe -v || light.exe -help || echo "light.exe version check failed"
           echo "WiX installation folder(s):"
           dir "C:\Program Files (x86)\WiX Toolset" /b /s || dir "C:\Program Files\WiX Toolset" /b /s || true
