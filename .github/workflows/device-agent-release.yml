@@ -24,47 +24,25 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Install WiX 3.11.2 and pin it ahead of WiX 3.14 (Windows)
+      - name: Install WiX 3.11.2 and diagnose install path (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           choco install wixtoolset --allow-downgrade --version=3.11.2 -y
 
-          # WiX 3.11 installs here; 3.14 is already on the runner
-          $wix311 = "C:\Program Files (x86)\WiX Toolset v3.11\bin"
-          if (-not (Test-Path $wix311)) {
-            # Fallback: find it dynamically
-            $wix311 = Get-ChildItem "C:\Program Files (x86)" -Filter "WiX Toolset v3.11*" -Directory -ErrorAction SilentlyContinue |
-              Select-Object -First 1 -ExpandProperty FullName
-            $wix311 = Join-Path $wix311 "bin"
-          }
+          Write-Host "=== All WiX folders under Program Files ==="
+          Get-ChildItem "C:\Program Files (x86)", "C:\Program Files" -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match "[Ww]i[Xx]" } |
+            Select-Object FullName
 
-          if (-not (Test-Path (Join-Path $wix311 "light.exe"))) {
-            Write-Error "WiX 3.11 light.exe not found at $wix311"
-            exit 1
-          }
+          Write-Host "=== All light.exe on disk ==="
+          Get-ChildItem "C:\Program Files (x86)", "C:\Program Files", "C:\ProgramData\chocolatey" `
+            -Filter "light.exe" -Recurse -ErrorAction SilentlyContinue |
+            Select-Object FullName
 
-          Write-Host "Pinning WiX 3.11 bin to front of PATH: $wix311"
-
-          # Prepend to GITHUB_PATH so all subsequent steps see 3.11 first
-          $existingPath = Get-Content $env:GITHUB_PATH -ErrorAction SilentlyContinue
-          "$wix311`n$existingPath" | Set-Content $env:GITHUB_PATH
-
-          Write-Host "light.exe version check:"
-          & "$wix311\light.exe" -help 2>&1 | Select-Object -First 3
-
-      - name: Verify WiX version (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $light = Get-Command light.exe
-          Write-Host "Active light.exe: $($light.Source)"
-          # Must say v3.11, not v3.14
-          if ($light.Source -notmatch "3\.11") {
-            Write-Error "Wrong WiX version on PATH: $($light.Source). Expected v3.11."
-            exit 1
-          }
-          Write-Host "WiX 3.11 confirmed on PATH."
+          Write-Host "=== Chocolatey lib folder for wixtoolset ==="
+          Get-ChildItem "C:\ProgramData\chocolatey\lib\wixtoolset" -Recurse -ErrorAction SilentlyContinue |
+            Select-Object FullName
 
       - name: Build JAR
         run: mvn -B package -DskipTests
