@@ -75,9 +75,10 @@ public class DeviceHttpServer {
     }
 
     private static void addCors(Headers headers) {
-        headers.set("Access-Control-Allow-Origin", "*");
+        headers.set("Access-Control-Allow-Origin", "https://one.fortressgroup.in");
         headers.set("Access-Control-Allow-Methods", "GET, OPTIONS");
         headers.set("Access-Control-Allow-Headers", "Content-Type");
+        headers.set("Access-Control-Allow-Private-Network", "true");
         headers.set("Cache-Control", "no-store");
     }
 
